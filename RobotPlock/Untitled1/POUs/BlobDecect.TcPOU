@@ -1,0 +1,252 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<TcPlcObject Version="1.1.0.1" ProductVersion="3.1.4024.12">
+  <POU Name="BlobDecect" Id="{438d1a77-cfd9-4566-acb7-5c0007786852}" SpecialFunc="None">
+    <Declaration><![CDATA[FUNCTION_BLOCK BlobDecect
+VAR_INPUT
+			// Camera
+	fbCamera			:	REFERENCE TO FB_VN_SimpleCameraControl;
+	eState				:	REFERENCE TO ETcVnCameraState;
+END_VAR
+
+VAR
+		hr 					:	HRESULT;	
+
+	//Images		
+	ipImageIn				:	ITcVnImage;
+	ipImageGrey				:	ITcVnImage;
+	ipImageInDisp			:	ITcVnDisplayableImage;
+	
+	// Watchdog
+	hrWD 					:	HRESULT;
+	tWDStop					:	DINT := 80000;	(* Stop time in us *)
+	tRest 					:	DINT;
+	nFunctionsMonitored		:	ULINT;
+	nFractionProcessed 		:	UDINT;	
+	tDuration 				:	DINT;
+	
+			// Bilateral Filter
+	ipImageFiltered		:	ITcVnImage;
+	nBilateral_Diameter		:	DINT	:=	7;
+	fBilateral_SigmaColor	:	LREAL	:=	20;
+	fBilateral_SigmaSpace	:	LREAL	:=	100;
+	
+	
+	
+	
+		// Contours
+	ipContours		:	ITcVnContainer;	
+	ipContour			:	ITcVnContainer;	
+	ipIterator			:	ITcVnForwardIterator;
+	ipContoursFiltered 		: ITcVnContainer;
+	ipIteratorFilteredList: ITcVnForwardIterator;
+	nContours			:	ULINT;
+	nContoursFiltered: ULINT;
+	ipContourPicked		:	ITcVnContainer;
+	fAreaPicked: LREAL;
+	nContourPicked: ULINT;
+	
+		// Parameters Blob
+	stParams			:	TcVnParamsBlobDetection;	
+	eThresholdType: ETcVnThresholdType;
+	fThreshold			:	REAL := 170;
+	fMinArea			:	REAL := 300;
+	fMaxArea			:   LREAL :=1000;
+	fMaxDissimilarity	:	LREAL := 0.01;
+	eComparisonMethod	:	ETcVnContoursMatchComparisonMethod := TCVN_CMCM_CONTOURS_MATCH_I3;
+
+	//Filtering Contours list
+	fArea: LREAL;
+	fCircularity: LREAL;
+	fCircularityPicked: LREAL;
+	Index: ULINT;
+	aCenter: TcVnPoint2_LREAL;
+	sContourNumberText: STRING;	
+	stRectanglePicked: TcVnRotatedRectangle;
+		
+	// Drawing
+	aColorGreen			:	TcVnVector4_LREAL := [0, 175, 0];
+	aColorBlue			:	TcVnVector4_LREAL := [0, 0, 255];
+	aColorRed			:	TcVnVector4_LREAL := [255, 0, 0];
+END_VAR
+]]></Declaration>
+    <Implementation>
+      <ST><![CDATA[eState := fbCamera.GetState();
+
+CASE eState OF
+
+TCVN_CS_INITIAL, TCVN_CS_INITIALIZING, TCVN_CS_INITIALIZED, TCVN_CS_OPENING, TCVN_CS_OPENED, TCVN_CS_STARTACQUISITION:
+	hr := fbCamera.StartAcquisition();
+
+TCVN_CS_ACQUIRING:
+	hr := fbCamera.GetCurrentImage(ipImageIn);	
+	
+
+
+	IF SUCCEEDED(hr) AND ipImageIn <> 0 THEN
+		
+		// Prepare result image
+		hr := F_VN_ConvertColorSpace(ipImageIn, ipImageGrey, TCVN_CST_RGB_TO_GRAY, hr);
+		//F_VN_MaxPixelValue(ipImageIn,aMaxValue,aPosition,hr);
+		//F_VN_MinPixelValue(ipImageIn,aMaxValue,aPosition,hr);
+		//hr:=F_VN_NormalizeImage(ipImageIn,ipImageIn,hr);
+
+
+
+
+		
+//Start watchdog to limit the time allowed for the functions below. 
+		hrWD := F_VN_StartRelWatchdog(tWDStop, hr);
+		
+		
+//		//Filter image smooth.
+//			hr := F_VN_GaussianFilterExp(
+//			ipSrcImage      :=  ipImageIn,
+//			ipDestImage     :=  ipImageFiltered,
+//			nFilterWidth    :=  3,
+//			nFilterHeight   :=  3,
+//			fSigmaX         :=  5,
+//			fSigmaY         :=  5,
+//			eBorderType     :=  TCVN_BIM_DEFAULT,
+//			hrPrev          :=  hr
+//			);
+			
+//			hr := F_VN_BilateralFilter(
+//						ipSrcImage      :=  ipImageIn,
+//						ipDestImage     :=  ipImageFiltered,
+//						nDiameter       :=  nBilateral_Diameter,//dDiameter set to 0 for automatic calculation depending on fSigmaSpace
+//						fSigmaColor     :=  fBilateral_SigmaColor,
+//						fSigmaSpace     :=  fBilateral_SigmaSpace,
+//						hrPrev          :=  hr);
+
+			//	hr := F_VN_CopyIntoDisplayableImage(ipImageFiltered, ipImageFilteredDisp, hr);			
+			
+			
+		//Blob detection
+		stParams.bFilterByArea:= TRUE;
+		stParams.fMinArea:=fMinArea;
+		stParams.fMaxArea:=fMaxArea;
+//		stParams.bFilterByCircularity:=FALSE;
+//		stParams.fMinCircularity:=0.15;
+		stParams.fMinThreshold:=130;  //150 start value
+		stParams.eThresholdType:= eThresholdType;
+		
+		hr := F_VN_DetectBlobs(ipImageIn, ipContours, stParams, hr);
+				hr := F_VN_GetNumberOfElements(ipContours, nContours, hr);
+
+		hr:= F_VN_DrawContours(ipContours, -1, ipImageIn, aColorBlue, 2, hr);
+
+
+			
+	//Stop watchdog to limit the time allowed for the functions above. 
+hrWD := F_VN_StopWatchdog(hrWD, nFunctionsMonitored => nFunctionsMonitored, nFractionProcessed => nFractionProcessed, tRest => tRest);
+
+
+			//Skapa ny filtrerad lista av konturer
+			hr:= F_VN_CreateContainer(ipContoursFiltered, ContainerType_Vector_Vector_TcVnPoint2_DINT,0, hr);  
+			hr:= F_VN_ReserveContainerMemory(ipContoursFiltered, 100, hr);  //Only for performance reasons
+			hr := F_VN_GetForwardIterator(ipContours, ipIterator, hr);
+			hr := F_VN_GetForwardIterator(ipContoursFiltered, ipIteratorFilteredList, hr);
+
+			//Loop through every contour and filter it into a new list
+			Index:=0;
+			WHILE SUCCEEDED(hr) AND_THEN ipIterator.CheckIfEnd() <> S_OK DO
+	
+				hr:= F_VN_GetContainer(ipIterator, ipContour, hr);
+						hr:= F_VN_ContourArea(ipContour, fArea, hr);
+						hr:= F_VN_ContourCircularity(ipContour, fCircularity, hr);
+						
+					IF fArea > 400  AND fArea < 1500 AND fCircularity > 0.15 THEN
+									hr:=F_VN_InsertIntoContainer_ITcVnContainer(ipContour,ipContoursFiltered,Index, hr);
+									Index:=Index+1;								
+									hr:= F_VN_ContourCenterOfMass(ipContour, aCenter, hr);
+									sContourNumberText:= ULINT_TO_STRING(index-1);						
+				hr:= F_VN_PutText(sContourNumberText, ipImageIn, LREAL_TO_UDINT(aCenter[0])+10,LREAL_TO_UDINT(aCenter[1]), ETcVnFontType.TCVN_FT_HERSHEY_PLAIN, 2, aColorGreen, hr);					
+				F_VN_EnclosingRectangle(ipContour,stRectanglePicked, hr);
+				hr:= F_VN_DrawRotatedRectangle(stRectanglePicked,ipImageIn, aColorGreen,2,hr);
+					END_IF
+			
+				hr:= F_VN_IncrementIterator(ipIterator, hr);
+				
+			END_WHILE
+
+					hr:= F_VN_DrawContours(ipContoursFiltered, -1, ipImageIn, aColorRed, 2, hr);
+					
+						//Get information about a specific contour			
+				IF nContoursFiltered > nContourPicked  THEN
+						
+						hr := F_VN_GetAt_ITcVnContainer(ipContoursFiltered, ipContourPicked, nContourPicked, hr);
+						//hr:= F_VN_DrawContours(ipContoursFiltered,ULINT_TO_DINT(nContourPicked),ipImageIn,aColorGreen,2,hr);
+						hr:= F_VN_ContourCircularity(ipContourPicked, fCircularityPicked, hr);
+						hr:= F_VN_ContourArea(ipContourPicked, fAreaPicked, hr);
+//						F_VN_EnclosingRectangle(ipContourPicked,stRectanglePicked, hr);
+//						hr:= F_VN_DrawRotatedRectangle(stRectanglePicked,ipImageIn, aColorGreen,2,hr);
+						
+				END_IF
+			
+							hr := F_VN_GetNumberOfElements(ipContoursFiltered, nContoursFiltered, hr);
+				
+
+		END_IF
+
+		
+		hr := F_VN_CopyIntoDisplayableImage(ipImageIn, ipImageInDisp, hr);
+
+
+
+	
+TCVN_CS_ERROR:
+	hr := fbCamera.Reset();	
+
+END_CASE
+
+
+
+
+						]]></ST>
+    </Implementation>
+    <LineIds Name="BlobDecect">
+      <LineId Id="20" Count="48" />
+      <LineId Id="98" Count="1" />
+      <LineId Id="132" Count="8" />
+      <LineId Id="100" Count="0" />
+      <LineId Id="143" Count="0" />
+      <LineId Id="196" Count="0" />
+      <LineId Id="102" Count="0" />
+      <LineId Id="194" Count="1" />
+      <LineId Id="103" Count="0" />
+      <LineId Id="105" Count="1" />
+      <LineId Id="186" Count="0" />
+      <LineId Id="191" Count="2" />
+      <LineId Id="187" Count="0" />
+      <LineId Id="190" Count="0" />
+      <LineId Id="188" Count="0" />
+      <LineId Id="108" Count="0" />
+      <LineId Id="147" Count="0" />
+      <LineId Id="197" Count="0" />
+      <LineId Id="151" Count="3" />
+      <LineId Id="213" Count="0" />
+      <LineId Id="155" Count="2" />
+      <LineId Id="163" Count="0" />
+      <LineId Id="165" Count="2" />
+      <LineId Id="224" Count="1" />
+      <LineId Id="168" Count="3" />
+      <LineId Id="148" Count="0" />
+      <LineId Id="210" Count="2" />
+      <LineId Id="200" Count="1" />
+      <LineId Id="215" Count="0" />
+      <LineId Id="202" Count="0" />
+      <LineId Id="218" Count="0" />
+      <LineId Id="216" Count="0" />
+      <LineId Id="203" Count="0" />
+      <LineId Id="219" Count="0" />
+      <LineId Id="222" Count="1" />
+      <LineId Id="199" Count="0" />
+      <LineId Id="149" Count="1" />
+      <LineId Id="208" Count="0" />
+      <LineId Id="109" Count="14" />
+      <LineId Id="107" Count="0" />
+      <LineId Id="104" Count="0" />
+      <LineId Id="9" Count="0" />
+    </LineIds>
+  </POU>
+</TcPlcObject>
