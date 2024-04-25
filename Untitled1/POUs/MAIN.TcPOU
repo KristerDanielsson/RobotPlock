@@ -8,6 +8,7 @@ VAR
 
 	fbAdaptiveThreshold: AdaptiveThreshold();
 	fbBlobDecect: BlobDecect();
+	
 END_VAR
 ]]></Declaration>
     <Implementation>
