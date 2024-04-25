@@ -1,25 +1,9 @@
-#TCMODIFIED
-[diff]
-	tool = TcProjectCompare
-[difftool "TcProjectCompare"]
-  path = C:/TwinCAT/3.1/Components/TcProjectCompare/TcProjectCompare.exe
-	cmd = \"C:/TwinCAT/3.1/Components/TcProjectCompare/TcProjectCompare.exe\" //filel \"$LOCAL\" //filer \"$REMOTE\" //dl  \"$LOCAL\" //dr \"$REMOTE\"  //sc
-	keepbackup = false
-	trustExitCode = true
-[merge]
-	tool = TcProjectCompare
-[mergetool "TcProjectCompare"]
-  path = C:/TwinCAT/3.1/Components/TcProjectCompare/TcProjectCompare.exe
-	cmd = \"C:/TwinCAT/3.1/Components/TcProjectCompare/TcProjectCompare.exe\" //filel \"$LOCAL\" //filer \"$REMOTE\" //filem \"$MERGED\" //dl  \\\"Head: \"$LOCAL\"\\\" //dm  \\\"Result: \"$MERGED\"\\\" //dr \"$REMOTE\" //sc
-	keepbackup = false
-	trustExitCode = true
-#TCMODIFIED
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # TcXaeShell Solution File, Format Version 11.00
 VisualStudioVersion = 15.0.33403.129
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{B1E792BE-AA5F-4E3C-8C82-674BF9C0715B}") = "RobotPlock", "RobotPlock\RobotPlock.tsproj", "{EFC4598A-F651-47C3-87D1-99F7C7E19E14}"
+Project("{B1E792BE-AA5F-4E3C-8C82-674BF9C0715B}") = "RobotPlock", "RobotPlock.tsproj", "{EFC4598A-F651-47C3-87D1-99F7C7E19E14}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -70,6 +54,6 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
-		SolutionGuid = {579FCECD-21BE-4CCE-8AA2-18637B13A313}
+		SolutionGuid = {4E56B782-C358-4516-BE33-EB8BE0BB96AC}
 	EndGlobalSection
 EndGlobal
