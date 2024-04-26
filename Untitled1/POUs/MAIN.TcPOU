@@ -13,11 +13,13 @@ END_VAR
 ]]></Declaration>
     <Implementation>
       <ST><![CDATA[//fbAdaptiveThreshold(fbCamera:=fbCamera,eState:=eState);
-fbBlobDecect(fbCamera:=fbCamera,eState:=eState);]]></ST>
+fbBlobDecect(fbCamera:=fbCamera,eState:=eState);
+]]></ST>
     </Implementation>
     <LineIds Name="MAIN">
       <LineId Id="2" Count="0" />
       <LineId Id="15" Count="0" />
+      <LineId Id="25" Count="0" />
     </LineIds>
   </POU>
 </TcPlcObject>
