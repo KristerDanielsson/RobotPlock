@@ -12,7 +12,7 @@ VAR
 END_VAR
 ]]></Declaration>
     <Implementation>
-      <ST><![CDATA[fbAdaptiveThreshold(fbCamera:=fbCamera,eState:=eState);
+      <ST><![CDATA[//fbAdaptiveThreshold(fbCamera:=fbCamera,eState:=eState);
 fbBlobDecect(fbCamera:=fbCamera,eState:=eState);
 ]]></ST>
     </Implementation>
