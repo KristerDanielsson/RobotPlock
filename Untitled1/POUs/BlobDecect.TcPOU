@@ -43,7 +43,7 @@ VAR
 	nContoursFiltered: ULINT;
 	ipContourPicked		:	ITcVnContainer;
 	fAreaPicked: LREAL;
-	nContourPicked: ULINT;
+	nContourMaster: ULINT:= 2;
 	
 		// Parameters Blob
 	stParams			:	TcVnParamsBlobDetection;	
@@ -62,11 +62,18 @@ VAR
 	aCenter: TcVnPoint2_LREAL;
 	sContourNumberText: STRING;	
 	stRectanglePicked: TcVnRotatedRectangle;
-		
+	RectangleDataForPicking: ARRAY [0..500] OF 	TcVnRotatedRectangle;
 	// Drawing
 	aColorGreen			:	TcVnVector4_LREAL := [0, 175, 0];
 	aColorBlue			:	TcVnVector4_LREAL := [0, 0, 255];
 	aColorRed			:	TcVnVector4_LREAL := [255, 0, 0];
+	
+	//Categorize products
+	iNumberOfProducts: DINT;
+	iCurrentProduct: ULINT;
+	CurrentArea: REAL;
+	nTolerance: REAL := 100;
+	nAreaRectanglePicked: REAL;
 END_VAR
 ]]></Declaration>
     <Implementation>
@@ -133,7 +140,7 @@ TCVN_CS_ACQUIRING:
 		hr := F_VN_DetectBlobs(ipImageIn, ipContours, stParams, hr);
 				hr := F_VN_GetNumberOfElements(ipContours, nContours, hr);
 
-		hr:= F_VN_DrawContours(ipContours, -1, ipImageIn, aColorBlue, 2, hr);
+//		hr:= F_VN_DrawContours(ipContours, -1, ipImageIn, aColorBlue, 2, hr);
 
 
 			
@@ -150,40 +157,54 @@ hrWD := F_VN_StopWatchdog(hrWD, nFunctionsMonitored => nFunctionsMonitored, nFra
 			//Loop through every contour and filter it into a new list
 			Index:=0;
 			WHILE SUCCEEDED(hr) AND_THEN ipIterator.CheckIfEnd() <> S_OK DO
-	
+				
+				//Check area and circularity on current contour 
 				hr:= F_VN_GetContainer(ipIterator, ipContour, hr);
 						hr:= F_VN_ContourArea(ipContour, fArea, hr);
 						hr:= F_VN_ContourCircularity(ipContour, fCircularity, hr);
-						
+
+					//Check if Contour meets area and circularity measures	
 					IF fArea > 400  AND fArea < 1500 AND fCircularity > 0.15 THEN
-									hr:=F_VN_InsertIntoContainer_ITcVnContainer(ipContour,ipContoursFiltered,Index, hr);
-									Index:=Index+1;								
+									hr:=F_VN_InsertIntoContainer_ITcVnContainer(ipContour,ipContoursFiltered,Index, hr);					
 									hr:= F_VN_ContourCenterOfMass(ipContour, aCenter, hr);
-									sContourNumberText:= ULINT_TO_STRING(index-1);						
+									sContourNumberText:= ULINT_TO_STRING(index);						
 				hr:= F_VN_PutText(sContourNumberText, ipImageIn, LREAL_TO_UDINT(aCenter[0])+10,LREAL_TO_UDINT(aCenter[1]), ETcVnFontType.TCVN_FT_HERSHEY_PLAIN, 2, aColorGreen, hr);					
-				F_VN_EnclosingRectangle(ipContour,stRectanglePicked, hr);
-				hr:= F_VN_DrawRotatedRectangle(stRectanglePicked,ipImageIn, aColorGreen,2,hr);
+				F_VN_EnclosingRectangle(ipContour,RectangleDataForPicking[index], hr);
+//				hr:= F_VN_DrawRotatedRectangle(RectangleDataForPicking[index],ipImageIn, aColorGreen,2,hr);
+									Index:=Index+1;						
 					END_IF
 			
 				hr:= F_VN_IncrementIterator(ipIterator, hr);
 				
 			END_WHILE
 
-					hr:= F_VN_DrawContours(ipContoursFiltered, -1, ipImageIn, aColorRed, 2, hr);
+//					hr:= F_VN_DrawContours(ipContoursFiltered, -1, ipImageIn, aColorRed, 2, hr);
 					
-						//Get information about a specific contour			
-				IF nContoursFiltered > nContourPicked  THEN
-						
-						hr := F_VN_GetAt_ITcVnContainer(ipContoursFiltered, ipContourPicked, nContourPicked, hr);
-						//hr:= F_VN_DrawContours(ipContoursFiltered,ULINT_TO_DINT(nContourPicked),ipImageIn,aColorGreen,2,hr);
+				//Get specific contour	- and pick as master for matching
+				IF nContoursFiltered > nContourMaster  THEN				
+						hr := F_VN_GetAt_ITcVnContainer(ipContoursFiltered, ipContourPicked, nContourMaster, hr);
+						hr:=  F_VN_EnclosingRectangle(ipContourPicked,stRectanglePicked, hr);
+						//hr:= F_VN_DrawContours(ipContoursFiltered,ULINT_TO_DINT(nContourMaster),ipImageIn,aColorGreen,2,hr);
 						hr:= F_VN_ContourCircularity(ipContourPicked, fCircularityPicked, hr);
 						hr:= F_VN_ContourArea(ipContourPicked, fAreaPicked, hr);
-//						F_VN_EnclosingRectangle(ipContourPicked,stRectanglePicked, hr);
-//						hr:= F_VN_DrawRotatedRectangle(stRectanglePicked,ipImageIn, aColorGreen,2,hr);
+						nAreaRectanglePicked:= stRectanglePicked.stSize.fHeight*stRectanglePicked.stSize.fWidth;
+						//Draw selected master contour
+						hr:= F_VN_DrawRotatedRectangle(stRectanglePicked,ipImageIn, aColorBlue,3,hr);
 						
-				END_IF
-			
+				END_IF			
 							hr := F_VN_GetNumberOfElements(ipContoursFiltered, nContoursFiltered, hr);
+
+
+				//Categorize products
+				FOR iCurrentProduct:= 0 TO nContoursFiltered DO
+					CurrentArea:=RectangleDataForPicking[iCurrentProduct].stSize.fHeight * RectangleDataForPicking[iCurrentProduct].stSize.fWidth;
+					IF CurrentArea-nTolerance < nAreaRectanglePicked AND CurrentArea+nTolerance > nAreaRectanglePicked THEN
+						hr:= F_VN_DrawRotatedRectangle(RectangleDataForPicking[iCurrentProduct],ipImageIn, aColorGreen,3,hr);
+					ELSE
+						hr:= F_VN_DrawRotatedRectangle(RectangleDataForPicking[iCurrentProduct],ipImageIn, aColorRed,3,hr);
+
+					END_IF
+				END_FOR
 				
 
 		END_IF
@@ -223,26 +244,36 @@ END_CASE
       <LineId Id="108" Count="0" />
       <LineId Id="147" Count="0" />
       <LineId Id="197" Count="0" />
-      <LineId Id="151" Count="3" />
+      <LineId Id="151" Count="0" />
+      <LineId Id="294" Count="0" />
+      <LineId Id="152" Count="2" />
       <LineId Id="213" Count="0" />
+      <LineId Id="295" Count="0" />
       <LineId Id="155" Count="2" />
-      <LineId Id="163" Count="0" />
       <LineId Id="165" Count="2" />
       <LineId Id="224" Count="1" />
+      <LineId Id="293" Count="0" />
       <LineId Id="168" Count="3" />
       <LineId Id="148" Count="0" />
-      <LineId Id="210" Count="2" />
-      <LineId Id="200" Count="1" />
-      <LineId Id="215" Count="0" />
-      <LineId Id="202" Count="0" />
-      <LineId Id="218" Count="0" />
-      <LineId Id="216" Count="0" />
-      <LineId Id="203" Count="0" />
-      <LineId Id="219" Count="0" />
-      <LineId Id="222" Count="1" />
-      <LineId Id="199" Count="0" />
-      <LineId Id="149" Count="1" />
+      <LineId Id="210" Count="1" />
+      <LineId Id="296" Count="0" />
+      <LineId Id="311" Count="1" />
+      <LineId Id="314" Count="0" />
+      <LineId Id="323" Count="0" />
+      <LineId Id="315" Count="2" />
+      <LineId Id="324" Count="0" />
+      <LineId Id="318" Count="3" />
+      <LineId Id="309" Count="0" />
+      <LineId Id="325" Count="1" />
       <LineId Id="208" Count="0" />
+      <LineId Id="327" Count="0" />
+      <LineId Id="329" Count="0" />
+      <LineId Id="336" Count="1" />
+      <LineId Id="340" Count="1" />
+      <LineId Id="344" Count="0" />
+      <LineId Id="338" Count="0" />
+      <LineId Id="330" Count="0" />
+      <LineId Id="328" Count="0" />
       <LineId Id="109" Count="14" />
       <LineId Id="107" Count="0" />
       <LineId Id="104" Count="0" />
